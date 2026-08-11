@@ -7,14 +7,30 @@ import {
   updateTask,
   deleteTask,
   getAdminDashboard,
+  getAdminUsers,
+  getAdminUserDetails,
+  getAdminUserHistory,
+  updateAdminTaskPriority,
+  verifyOtp,
+  resendOtp,
 } from "./api";
 import "./App.css";
 
 function App() {
   const [isLogin, setIsLogin] = useState(true);
   const [user, setUser] = useState(null);
+
   const [adminData, setAdminData] = useState(null);
   const [adminLoading, setAdminLoading] = useState(false);
+  const [adminUsers, setAdminUsers] = useState([]);
+  const [adminUsersLoading, setAdminUsersLoading] = useState(false);
+  const [selectedAdminUser, setSelectedAdminUser] = useState(null);
+  const [adminUserDetails, setAdminUserDetails] = useState(null);
+
+  const [adminUserDetailsLoading, setAdminUserDetailsLoading] = useState(false);
+  const [adminUserHistory, setAdminUserHistory] = useState([]);
+  const [adminUserHistoryLoading, setAdminUserHistoryLoading] = useState(false);
+
   const [tasks, setTasks] = useState([]);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -25,6 +41,18 @@ function App() {
 
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [otpEmail, setOtpEmail] = useState("");
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpMessage, setOtpMessage] = useState("");
+  const [showVerificationSuccess, setShowVerificationSuccess] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  const [showDuplicateEmailModal, setShowDuplicateEmailModal] =
+  useState(false);
 
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
@@ -47,6 +75,18 @@ function App() {
   const [taskToDelete, setTaskToDelete] = useState(null);
 
   useEffect(() => {
+  if (resendCooldown <= 0) {
+    return;
+  }
+
+  const timer = setInterval(() => {
+    setResendCooldown((current) => current - 1);
+  }, 1000);
+
+  return () => clearInterval(timer);
+}, [resendCooldown]);
+
+  useEffect(() => {
     const savedUser = localStorage.getItem("user");
     const token = localStorage.getItem("token");
 
@@ -58,6 +98,7 @@ function App() {
 
   if (parsedUser.role === "admin") {
     loadAdminDashboard(token);
+    loadAdminUsers(token);
   }
 }
   }, []);
@@ -69,10 +110,8 @@ const loadTasks = async (token) => {
     const data = await getTasks(token);
     setTasks(Array.isArray(data) ? data : []);
   } catch (error) {
-    console.error("Failed to load tasks:", error);
-  } finally {
-    setTasksLoading(false);
-  }
+  console.error(error);
+}
 };
 
 const loadAdminDashboard = async (token) => {
@@ -85,6 +124,70 @@ const loadAdminDashboard = async (token) => {
     console.error("Failed to load admin dashboard:", error);
   } finally {
     setAdminLoading(false);
+  }
+};
+
+const loadAdminUsers = async (token) => {
+  setAdminUsersLoading(true);
+
+  try {
+    const data = await getAdminUsers(token);
+    setAdminUsers(data);
+  } catch (error) {
+    console.error("Failed to load admin users:", error);
+  } finally {
+    setAdminUsersLoading(false);
+  }
+};
+
+const loadAdminUserDetails = async (userId) => {
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    return;
+  }
+
+  setAdminUserDetailsLoading(true);
+  setAdminUserHistoryLoading(true);
+
+  try {
+    const [details, history] = await Promise.all([
+      getAdminUserDetails(token, userId),
+      getAdminUserHistory(token, userId),
+    ]);
+
+    setAdminUserDetails(details);
+    setAdminUserHistory(history);
+    setSelectedAdminUser(userId);
+  } catch (error) {
+    console.error("Failed to load user details:", error);
+  } finally {
+    setAdminUserDetailsLoading(false);
+    setAdminUserHistoryLoading(false);
+  }
+};
+
+const handleAdminPriorityChange = async (taskId, priority) => {
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    return;
+  }
+
+  try {
+    await updateAdminTaskPriority(token, taskId, priority);
+
+    setAdminUserDetails((current) => ({
+      ...current,
+      tasks: current.tasks.map((task) =>
+        task.id === taskId
+          ? { ...task, priority }
+          : task
+      ),
+    }));
+  } catch (error) {
+    console.error("Failed to update task priority:", error);
+    alert(error.message);
   }
 };
 
@@ -167,6 +270,7 @@ if (data.token) {
 
   if (data.user.role === "admin") {
     await loadAdminDashboard(data.token);
+    await loadAdminUsers(data.token);
   }
 }
         else {
@@ -174,39 +278,93 @@ if (data.token) {
         }
       } else {
         const data = await registerUser({
-          name,
-          email,
-          password,
-        });
+  name,
+  email,
+  password,
+});
 
-        setMessage(
-          data.message || "Registration successful!"
-        );
+if (data.message === "Email already registered") {
+  setMessage("");
+  setShowDuplicateEmailModal(true);
+  return;
+}
 
-        if (
-          data.message ===
-          "User registered successfully"
-        ) {
-          setTimeout(() => {
-            setIsLogin(true);
-            setName("");
-            setPassword("");
-            setMessage(
-              "Account created. You can now sign in."
-            );
-          }, 1000);
-        }
+setMessage(
+  data.message || "Registration successful!"
+);
+
+if (data.message === "OTP sent to your email") {
+  setOtpEmail(email);
+  setOtp("");
+  setOtpMessage("");
+  setResendCooldown(15);
+  setShowOtpModal(true);
+}
       }
     } catch (error) {
-      console.error(error);
-      setMessage(
-        "Something went wrong. Please try again."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+  console.error(error);
 
+  if (
+    !isLogin &&
+    error.message === "Email already registered"
+  ) {
+    setShowDuplicateEmailModal(true);
+    return;
+  }
+
+  setMessage(
+    "Something went wrong. Please try again."
+  );
+} finally {
+  setLoading(false);
+}
+  };
+  const handleVerifyOtp = async () => {
+  if (otp.length !== 6) {
+    setOtpMessage("Please enter the 6-digit OTP.");
+    return;
+  }
+
+  setOtpLoading(true);
+  setOtpMessage("");
+
+  try {
+    const data = await verifyOtp(otpEmail, otp);
+
+    setShowOtpModal(false);
+setOtp("");
+setOtpEmail("");
+setOtpMessage("");
+
+setShowVerificationSuccess(true);
+  } catch (error) {
+    setOtpMessage(error.message);
+  } finally {
+    setOtpLoading(false);
+  }
+};
+
+const handleResendOtp = async () => {
+  if (resendCooldown > 0 || resendLoading) {
+    return;
+  }
+
+  setResendLoading(true);
+  setOtpMessage("");
+
+  try {
+    const data = await resendOtp(otpEmail);
+
+    setOtp("");
+    setOtpMessage(data.message);
+    setResendCooldown(15);
+  } catch (error) {
+    setOtpMessage(error.message);
+  } finally {
+    setResendLoading(false);
+  }
+};
+  
   const switchMode = () => {
     setIsLogin(!isLogin);
     setName("");
@@ -278,57 +436,305 @@ const handleEditTask = (task) => {
         </button>
       </header>
 
+      {selectedAdminUser && adminUserDetails ? (
+  <section className="dashboard-content admin-user-page">
+
+    <button
+      className="admin-back-button"
+      onClick={() => {
+        setSelectedAdminUser(null);
+        setAdminUserDetails(null);
+        setAdminUserHistory([]);
+      }}
+    >
+      ← Back to Users
+    </button>
+
+    <section className="admin-user-header">
+      <div>
+        <h2>{adminUserDetails.user.name}</h2>
+        <p>{adminUserDetails.user.email}</p>
+      </div>
+
+      <span className={`admin-role ${adminUserDetails.user.role}`}>
+        {adminUserDetails.user.role}
+      </span>
+    </section>
+
+    <section className="admin-section">
+      <div className="admin-section-header">
+        <div>
+          <h2>Task Overview</h2>
+          <p>Current task activity for this user.</p>
+        </div>
+      </div>
+
+      <div className="admin-task-overview">
+        <div className="admin-task-stat">
+          <span>Total Tasks</span>
+          <strong>{adminUserDetails.tasks.length}</strong>
+        </div>
+
+        <div className="admin-task-stat pending">
+          <span>Pending</span>
+          <strong>
+            {
+              adminUserDetails.tasks.filter(
+                (task) => task.status === "pending"
+              ).length
+            }
+          </strong>
+        </div>
+
+        <div className="admin-task-stat progress">
+          <span>In Progress</span>
+          <strong>
+            {
+              adminUserDetails.tasks.filter(
+                (task) => task.status === "in_progress"
+              ).length
+            }
+          </strong>
+        </div>
+
+        <div className="admin-task-stat completed">
+          <span>Completed</span>
+          <strong>
+            {
+              adminUserDetails.tasks.filter(
+                (task) => task.status === "completed"
+              ).length
+            }
+          </strong>
+        </div>
+      </div>
+    </section>
+
+    <section className="admin-section admin-user-tasks">
+      <div className="admin-section-header">
+        <div>
+          <h2>Tasks</h2>
+          <p>
+            Tasks created by {adminUserDetails.user.name}.
+          </p>
+        </div>
+      </div>
+
+      {adminUserDetails.tasks.length === 0 ? (
+        <div className="admin-empty-state">
+          <h3>No tasks yet</h3>
+          <p>
+            This user has not created any tasks.
+          </p>
+        </div>
+      ) : (
+        <div className="admin-users-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Status</th>
+                <th>Priority</th>
+                <th>Due Date</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {adminUserDetails.tasks.map((task) => (
+                <tr key={task.id}>
+                  <td>{task.title}</td>
+                  <td>
+  {task.status === "in_progress"
+    ? "In Progress"
+    : task.status.charAt(0).toUpperCase() + task.status.slice(1)}
+</td>
+<td>
+  <select
+    className={`admin-priority-select ${task.priority}`}
+    value={task.priority || "medium"}
+    onChange={(e) =>
+      handleAdminPriorityChange(task.id, e.target.value)
+    }
+  >
+    <option value="low">LOW</option>
+    <option value="medium">MEDIUM</option>
+    <option value="high">HIGH</option>
+  </select>
+</td>
+                  <td>{task.due_date || "—"}</td>
+                  <td>{task.created_at}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+    <section className="admin-section admin-user-history">
+  <div className="admin-section-header">
+    <div>
+      <h2>Activity History</h2>
+      <p>Task activity and changes made by this user.</p>
+    </div>
+  </div>
+
+  {adminUserHistoryLoading ? (
+    <div className="admin-empty-state">
+      <p>Loading activity history...</p>
+    </div>
+  ) : adminUserHistory.length === 0 ? (
+    <div className="admin-empty-state">
+      <h3>No activity yet</h3>
+      <p>This user has no recorded task activity.</p>
+    </div>
+  ) : (
+    <div className="admin-history-list">
+      {adminUserHistory.map((entry) => (
+        <div className="admin-history-item" key={entry.id}>
+          <div className="admin-history-marker"></div>
+
+          <div className="admin-history-content">
+            <div className="admin-history-top">
+              <strong>
+                {entry.task_title || `Task #${entry.task_id}`}
+              </strong>
+
+              <span className={`admin-history-action ${entry.action}`}>
+                {entry.action.replace("_", " ")}
+              </span>
+            </div>
+
+            <p>{entry.details}</p>
+
+            <span className="admin-history-date">
+              {entry.created_at}
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</section>
+
+  </section>
+
+) : (
+
       <section className="dashboard-content">
         <div className="section-heading">
           <div>
-            <h2>Admin Overview</h2>
-            <p>Manage and monitor the application.</p>
+            <h2>Overview</h2>
+            <p>Monitor application activity and manage your platform.</p>
           </div>
         </div>
 
         <div className="task-stats">
-  <div className="stat-card">
-    <span className="stat-label">Total Users</span>
-    <strong>{adminData?.statistics?.totalUsers ?? "-"}</strong>
-  </div>
-
-  <div className="stat-card">
-    <span className="stat-label">Total Tasks</span>
-    <strong>{adminData?.statistics?.totalTasks ?? "-"}</strong>
-  </div>
-
-  <div className="stat-card">
-    <span className="stat-label">Pending Tasks</span>
-    <strong>{adminData?.statistics?.pendingTasks ?? "-"}</strong>
-  </div>
-
-  <div className="stat-card">
-    <span className="stat-label">In Progress</span>
-    <strong>{adminData?.statistics?.inProgressTasks ?? "-"}</strong>
-  </div>
-
-  <div className="stat-card">
-    <span className="stat-label">Completed Tasks</span>
-    <strong>{adminData?.statistics?.completedTasks ?? "-"}</strong>
-  </div>
-</div>
-
-        {adminLoading ? (
-          <div className="empty-state">
-            <div className="loading-spinner"></div>
-            <h3>Loading admin data...</h3>
-            <p>Please wait while the admin dashboard loads.</p>
+          <div className="stat-card">
+            <span className="stat-label">Total Users</span>
+            <strong>
+              {adminData?.statistics?.totalUsers ?? "-"}
+            </strong>
           </div>
-        ) : (
-          <div className="empty-state">
-            <div className="empty-icon">✓</div>
-            <h3>Application Overview</h3>
-            <p>
-              Monitor users and task activity across Cloud Task Manager.
-            </p>
+
+          <div className="stat-card">
+            <span className="stat-label">Total Tasks</span>
+            <strong>
+              {adminData?.statistics?.totalTasks ?? "-"}
+            </strong>
           </div>
-        )}
+
+          <div className="stat-card">
+            <span className="stat-label">Pending Tasks</span>
+            <strong>
+              {adminData?.statistics?.pendingTasks ?? "-"}
+            </strong>
+          </div>
+
+          <div className="stat-card">
+            <span className="stat-label">Completed Tasks</span>
+            <strong>
+              {adminData?.statistics?.completedTasks ?? "-"}
+            </strong>
+          </div>
+        </div>
+
+        <section className="admin-section">
+  <div className="admin-section-header">
+    <div>
+      <h2>User Management</h2>
+      <p>
+        View and manage registered users.
+      </p>
+    </div>
+  </div>
+
+  {adminUsersLoading ? (
+    <p className="admin-table-message">Loading users...</p>
+  ) : adminUsers.length === 0 ? (
+    <p className="admin-table-message">No users found.</p>
+  ) : (
+    <div className="admin-users-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Joined</th>
+            <th>Total Tasks</th>
+            <th>Pending</th>
+            <th>In Progress</th>
+            <th>Completed</th>
+            <th>Last Login</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {adminUsers.map((adminUser) => (
+            <tr key={adminUser.id}>
+              <td>
+  <button
+    className="admin-user-name"
+    onClick={() => loadAdminUserDetails(adminUser.id)}
+  >
+    {adminUser.name}
+  </button>
+</td>
+              <td>{adminUser.email}</td>
+              <td>
+                <span
+                  className={`admin-role ${adminUser.role}`}
+                >
+                  {adminUser.role}
+                </span>
+              </td>
+              <td>{adminUser.created_at}</td>
+              <td>{adminUser.total_tasks}</td>
+              <td>{adminUser.pending_tasks}</td>
+              <td>{adminUser.in_progress_tasks}</td>
+              <td>{adminUser.completed_tasks}</td>
+<td>
+  {adminUser.last_login
+    ? new Date(adminUser.last_login).toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      })
+    : "Never"}
+</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
+</section>
       </section>
+)}
     </main>
   );
 }
@@ -595,6 +1001,12 @@ const handleEditTask = (task) => {
   </span>
 )}
 
+{task.priority && (
+  <span className={`task-priority ${task.priority}`}>
+    {task.priority.toUpperCase()} PRIORITY
+  </span>
+)}
+
   <div className="task-actions">
     <button
       className="edit-task-button"
@@ -817,7 +1229,170 @@ const handleEditTask = (task) => {
           </p>
         </div>
       </section>
-      
+      {showOtpModal && (
+  <div className="otp-modal-overlay">
+    <div className="otp-modal">
+      <button
+        type="button"
+        className="otp-close-button"
+        onClick={() => setShowOtpModal(false)}
+      >
+        ×
+      </button>
+
+      <div className="otp-modal-icon">✉</div>
+
+      <h2>Verify your email</h2>
+
+      <p>
+        We sent a 6-digit verification code to
+        <strong>{otpEmail}</strong>
+      </p>
+
+      <div className="otp-input-group">
+        <label htmlFor="otp">Verification code</label>
+
+        <input
+          id="otp"
+          type="text"
+          inputMode="numeric"
+          maxLength="6"
+          placeholder="000000"
+          value={otp}
+          onChange={(e) =>
+            setOtp(e.target.value.replace(/\D/g, ""))
+          }
+        />
+      </div>
+
+      {otpMessage && (
+        <div className="otp-message">
+          {otpMessage}
+        </div>
+      )}
+
+      <button
+        type="button"
+        className="primary-button otp-verify-button"
+        onClick={handleVerifyOtp}
+        disabled={otpLoading}
+      >
+        {otpLoading ? "Verifying..." : "Verify email →"}
+      </button>
+
+      <p className="otp-helper">
+        Enter the code sent to your email. The code expires in 10 minutes.
+      </p>
+      <div className="otp-resend-section">
+  <span>Didn't receive the code?</span>
+
+  <button
+    type="button"
+    className="otp-resend-button"
+    onClick={handleResendOtp}
+    disabled={resendLoading || resendCooldown > 0}
+  >
+    {resendLoading
+      ? "Sending..."
+      : resendCooldown > 0
+      ? `Resend in ${resendCooldown}s`
+      : "Resend OTP"}
+  </button>
+</div>
+    </div>
+  </div>
+)} 
+
+{showVerificationSuccess && (
+  <div className="otp-modal-overlay">
+    <div className="otp-modal verification-success-modal">
+
+      <div className="verification-success-icon">
+        ✓
+      </div>
+
+      <h2>Email verified</h2>
+
+      <p>
+        Your email has been successfully verified.
+        <strong>You can now sign in to your account.</strong>
+      </p>
+
+      <button
+        type="button"
+        className="primary-button otp-verify-button"
+        onClick={() => {
+          setShowVerificationSuccess(false);
+          setIsLogin(true);
+          setName("");
+          setEmail("");
+          setPassword("");
+          setMessage("");
+        }}
+      >
+        Continue to Sign In →
+      </button>
+
+    </div>
+  </div>
+)}
+
+{showDuplicateEmailModal && (
+  <div className="otp-modal-overlay">
+    <div className="otp-modal verification-success-modal">
+
+      <button
+        type="button"
+        className="otp-close-button"
+        onClick={() => setShowDuplicateEmailModal(false)}
+      >
+        ×
+      </button>
+
+      <div className="verification-success-icon">
+        !
+      </div>
+
+      <h2>Email already registered</h2>
+
+      <p>
+        This email is already associated with an account.
+        <strong>
+          Please try another email or proceed with login.
+        </strong>
+      </p>
+
+      <button
+        type="button"
+        className="primary-button otp-verify-button"
+        onClick={() => {
+          setShowDuplicateEmailModal(false);
+          setIsLogin(true);
+          setName("");
+          setPassword("");
+          setMessage("");
+        }}
+      >
+        Proceed to Sign In →
+      </button>
+
+      <button
+        type="button"
+        className="otp-resend-button duplicate-email-secondary-button"
+        onClick={() => {
+          setShowDuplicateEmailModal(false);
+          setEmail("");
+          setPassword("");
+          setMessage("");
+        }}
+      >
+        Try another email
+      </button>
+
+    </div>
+  </div>
+)}
+
     </main>
   );
 }

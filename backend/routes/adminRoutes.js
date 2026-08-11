@@ -51,4 +51,164 @@ router.get(
   }
 );
 
+router.get(
+  "/users",
+  authenticateToken,
+  authorizeAdmin,
+  async (req, res) => {
+    try {
+      const [users] = await db.query(
+  `SELECT
+     u.id,
+     u.name,
+     u.email,
+     u.role,
+     u.created_at,
+     u.last_login,
+     COUNT(t.id) AS total_tasks,
+     SUM(CASE WHEN t.status = 'pending' THEN 1 ELSE 0 END) AS pending_tasks,
+     SUM(CASE WHEN t.status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress_tasks,
+     SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) AS completed_tasks
+   FROM users u
+   LEFT JOIN tasks t ON u.id = t.user_id
+   GROUP BY u.id, u.name, u.email, u.role, u.created_at, u.last_login
+   ORDER BY u.created_at DESC`
+);
+
+      res.json(users);
+    } catch (error) {
+      console.error("Admin users error:", error);
+
+      res.status(500).json({
+        message: "Failed to load users",
+      });
+    }
+  }
+);
+
+router.get(
+  "/users/:id",
+  authenticateToken,
+  authorizeAdmin,
+  async (req, res) => {
+    try {
+      const userId = req.params.id;
+
+      const [users] = await db.query(
+        `SELECT id, name, email, role, created_at
+         FROM users
+         WHERE id = ?`,
+        [userId]
+      );
+
+      if (users.length === 0) {
+        return res.status(404).json({
+          message: "User not found",
+        });
+      }
+
+      const [tasks] = await db.query(
+        `SELECT
+           id,
+           title,
+           description,
+           status,
+           priority,
+           due_date,
+           created_at
+         FROM tasks
+         WHERE user_id = ?
+         ORDER BY created_at DESC`,
+        [userId]
+      );
+
+      res.json({
+        user: users[0],
+        tasks,
+      });
+    } catch (error) {
+      console.error("Admin user details error:", error);
+
+      res.status(500).json({
+        message: "Failed to load user details",
+      });
+    }
+  }
+);
+
+router.get(
+  "/users/:id/history",
+  authenticateToken,
+  authorizeAdmin,
+  async (req, res) => {
+    try {
+      const userId = req.params.id;
+
+      const [history] = await db.query(
+        `SELECT
+           th.id,
+           th.task_id,
+           th.user_id,
+           th.action,
+           th.details,
+           th.created_at,
+           t.title AS task_title
+         FROM task_history th
+         LEFT JOIN tasks t ON th.task_id = t.id
+         WHERE th.user_id = ?
+         ORDER BY th.created_at DESC`,
+        [userId]
+      );
+
+      res.json(history);
+    } catch (error) {
+      console.error("Admin task history error:", error);
+
+      res.status(500).json({
+        message: "Failed to load task history",
+      });
+    }
+  }
+);
+
+router.put(
+  "/tasks/:id/priority",
+  authenticateToken,
+  authorizeAdmin,
+  async (req, res) => {
+    try {
+      const { priority } = req.body;
+
+      if (!["low", "medium", "high"].includes(priority)) {
+        return res.status(400).json({
+          message: "Invalid priority",
+        });
+      }
+
+      const [result] = await db.query(
+        `UPDATE tasks
+         SET priority = ?
+         WHERE id = ?`,
+        [priority, req.params.id]
+      );
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({
+          message: "Task not found",
+        });
+      }
+
+      res.json({
+        message: "Task priority updated successfully",
+      });
+    } catch (error) {
+      console.error("Admin priority error:", error);
+
+      res.status(500).json({
+        message: "Failed to update task priority",
+      });
+    }
+  }
+);
+
 module.exports = router;
