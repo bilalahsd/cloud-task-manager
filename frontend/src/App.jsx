@@ -51,9 +51,15 @@ function App() {
     const token = localStorage.getItem("token");
 
     if (savedUser && token) {
-      setUser(JSON.parse(savedUser));
-      loadTasks(token);
-    }
+  const parsedUser = JSON.parse(savedUser);
+
+  setUser(parsedUser);
+  loadTasks(token);
+
+  if (parsedUser.role === "admin") {
+    loadAdminDashboard(token);
+  }
+}
   }, []);
 
 const loadTasks = async (token) => {
@@ -254,6 +260,78 @@ const handleEditTask = (task) => {
     setUser(null);
     setTasks([]);
   };
+
+  if (user && user.role === "admin") {
+  return (
+    <main className="dashboard">
+      <header className="dashboard-header">
+        <div>
+          <h1>Cloud Task Manager</h1>
+          <p>Admin Dashboard</p>
+        </div>
+
+        <button
+          className="logout-button"
+          onClick={handleLogout}
+        >
+          Logout
+        </button>
+      </header>
+
+      <section className="dashboard-content">
+        <div className="section-heading">
+          <div>
+            <h2>Admin Overview</h2>
+            <p>Manage and monitor the application.</p>
+          </div>
+        </div>
+
+        <div className="task-stats">
+  <div className="stat-card">
+    <span className="stat-label">Total Users</span>
+    <strong>{adminData?.statistics?.totalUsers ?? "-"}</strong>
+  </div>
+
+  <div className="stat-card">
+    <span className="stat-label">Total Tasks</span>
+    <strong>{adminData?.statistics?.totalTasks ?? "-"}</strong>
+  </div>
+
+  <div className="stat-card">
+    <span className="stat-label">Pending Tasks</span>
+    <strong>{adminData?.statistics?.pendingTasks ?? "-"}</strong>
+  </div>
+
+  <div className="stat-card">
+    <span className="stat-label">In Progress</span>
+    <strong>{adminData?.statistics?.inProgressTasks ?? "-"}</strong>
+  </div>
+
+  <div className="stat-card">
+    <span className="stat-label">Completed Tasks</span>
+    <strong>{adminData?.statistics?.completedTasks ?? "-"}</strong>
+  </div>
+</div>
+
+        {adminLoading ? (
+          <div className="empty-state">
+            <div className="loading-spinner"></div>
+            <h3>Loading admin data...</h3>
+            <p>Please wait while the admin dashboard loads.</p>
+          </div>
+        ) : (
+          <div className="empty-state">
+            <div className="empty-icon">✓</div>
+            <h3>Application Overview</h3>
+            <p>
+              Monitor users and task activity across Cloud Task Manager.
+            </p>
+          </div>
+        )}
+      </section>
+    </main>
+  );
+}
 
   if (user) {
     return (
