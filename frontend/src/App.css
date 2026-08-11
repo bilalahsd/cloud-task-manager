@@ -2381,3 +2381,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 .duplicate-email-secondary-button {
   margin-top: 14px;
 }
+
+.character-counter {
+  margin-top: 5px;
+  text-align: right;
+  font-size: 11px;
+  color: #8f96ff;
+}

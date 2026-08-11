@@ -203,12 +203,43 @@ const handleCreateTask = async (e) => {
   setTaskLoading(true);
 
   try {
-    const taskData = {
-      title: taskTitle,
-      description: taskDescription,
-      status: taskStatus,
-      due_date: taskDueDate || null,
-    };
+    const trimmedTitle = taskTitle.trim();
+const trimmedDescription = taskDescription.trim();
+
+if (taskDueDate) {
+  const today = new Date().toISOString().split("T")[0];
+
+  if (taskDueDate < today) {
+    alert("Due date cannot be in the past.");
+    setTaskLoading(false);
+    return;
+  }
+}
+
+if (!trimmedTitle) {
+  alert("Task title cannot be empty.");
+  setTaskLoading(false);
+  return;
+}
+
+if (trimmedTitle.length > 100) {
+  alert("Task title cannot exceed 100 characters.");
+  setTaskLoading(false);
+  return;
+}
+
+if (trimmedDescription.length > 500) {
+  alert("Task description cannot exceed 500 characters.");
+  setTaskLoading(false);
+  return;
+}
+
+const taskData = {
+  title: trimmedTitle,
+  description: trimmedDescription,
+  status: taskStatus,
+  due_date: taskDueDate || null,
+};
 
     if (editingTask) {
       // Update existing task
@@ -851,8 +882,12 @@ const handleEditTask = (task) => {
                     onChange={(e) =>
                       setTaskTitle(e.target.value)
                     }
+                    maxLength={100}
                     required
                   />
+                  <div className="character-counter">
+  {taskTitle.length}/100
+</div>
                 </div>
 
                 <div className="task-input-group">
@@ -867,7 +902,11 @@ const handleEditTask = (task) => {
                         e.target.value
                       )
                     }
+                    maxLength={500}
                   ></textarea>
+                  <div className="character-counter">
+  {taskDescription.length}/500
+</div>
                 </div>
 
                 <div className="task-form-row">
