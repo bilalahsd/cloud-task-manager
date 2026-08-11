@@ -6,12 +6,15 @@ import {
   createTask,
   updateTask,
   deleteTask,
+  getAdminDashboard,
 } from "./api";
 import "./App.css";
 
 function App() {
   const [isLogin, setIsLogin] = useState(true);
   const [user, setUser] = useState(null);
+  const [adminData, setAdminData] = useState(null);
+  const [adminLoading, setAdminLoading] = useState(false);
   const [tasks, setTasks] = useState([]);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -63,6 +66,19 @@ const loadTasks = async (token) => {
     console.error("Failed to load tasks:", error);
   } finally {
     setTasksLoading(false);
+  }
+};
+
+const loadAdminDashboard = async (token) => {
+  setAdminLoading(true);
+
+  try {
+    const data = await getAdminDashboard(token);
+    setAdminData(data);
+  } catch (error) {
+    console.error("Failed to load admin dashboard:", error);
+  } finally {
+    setAdminLoading(false);
   }
 };
 
@@ -132,17 +148,22 @@ const handleCreateTask = async (e) => {
           password,
         });
 
-        if (data.token) {
-          localStorage.setItem("token", data.token);
-          localStorage.setItem(
-            "user",
-            JSON.stringify(data.user)
-          );
+if (data.token) {
+  localStorage.setItem("token", data.token);
+  localStorage.setItem(
+    "user",
+    JSON.stringify(data.user)
+  );
 
-          setUser(data.user);
+  setUser(data.user);
 
-          await loadTasks(data.token);
-        } else {
+  await loadTasks(data.token);
+
+  if (data.user.role === "admin") {
+    await loadAdminDashboard(data.token);
+  }
+}
+        else {
           setMessage(data.message || "Login failed");
         }
       } else {
