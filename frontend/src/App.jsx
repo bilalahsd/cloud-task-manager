@@ -6,6 +6,7 @@ import {
   createTask,
   updateTask,
   deleteTask,
+  deleteAdminTask,
   getAdminDashboard,
   getAdminUsers,
   getAdminUserDetails,
@@ -34,6 +35,7 @@ function App() {
   const [tasks, setTasks] = useState([]);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [showTaskForm, setShowTaskForm] = useState(false);
+  const [taskSearch, setTaskSearch] = useState("");
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -60,6 +62,7 @@ function App() {
   const [taskDueDate, setTaskDueDate] = useState("");
   const [taskLoading, setTaskLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [adminTaskToDelete, setAdminTaskToDelete] = useState(null);
   
   const totalTasks = tasks.length;
   const pendingTasks = tasks.filter(
@@ -195,6 +198,28 @@ const handleAdminPriorityChange = async (taskId, priority) => {
     }));
   } catch (error) {
     console.error("Failed to update task priority:", error);
+    alert(error.message);
+  }
+};
+
+const handleAdminDeleteTask = async (taskId) => {
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    return;
+  }
+
+  try {
+    await deleteAdminTask(token, taskId);
+
+    await loadAdminUserDetails(selectedAdminUser);
+    await loadAdminDashboard(token);
+  } catch (error) {
+    console.error(
+      "Failed to delete task as admin:",
+      error
+    );
+
     alert(error.message);
   }
 };
@@ -580,6 +605,7 @@ const handleEditTask = (task) => {
                 <th>Priority</th>
                 <th>Due Date</th>
                 <th>Created</th>
+                <th>Actions</th>
               </tr>
             </thead>
 
@@ -607,6 +633,15 @@ const handleEditTask = (task) => {
 </td>
                   <td>{task.due_date || "—"}</td>
                   <td>{task.created_at}</td>
+                  <td>
+    <button
+      type="button"
+      className="admin-delete-task-button"
+      onClick={() => setAdminTaskToDelete(task)}
+    >
+      Delete
+    </button>
+  </td>
                 </tr>
               ))}
             </tbody>
@@ -633,29 +668,97 @@ const handleEditTask = (task) => {
     </div>
   ) : (
     <div className="admin-history-list">
-      {adminUserHistory.map((entry) => (
-        <div className="admin-history-item" key={entry.id}>
-          <div className="admin-history-marker"></div>
+      {adminUserHistory.map((entry) => {
+  let details = {};
 
-          <div className="admin-history-content">
-            <div className="admin-history-top">
-              <strong>
-                {entry.task_title || `Task #${entry.task_id}`}
-              </strong>
+  try {
+    details =
+      typeof entry.details === "string"
+        ? JSON.parse(entry.details)
+        : entry.details || {};
+  } catch {
+    details = {};
+  }
 
-              <span className={`admin-history-action ${entry.action}`}>
-                {entry.action.replace("_", " ")}
-              </span>
-            </div>
+  const isDeleted = entry.action === "TASK_DELETED";
 
-            <p>{entry.details}</p>
+  return (
+    <div
+      className={`admin-history-item ${
+        isDeleted ? "admin-history-item-deleted" : ""
+      }`}
+      key={entry.id}
+    >
+      <div className="admin-history-marker"></div>
 
-            <span className="admin-history-date">
-              {entry.created_at}
+      <div className="admin-history-content">
+        <div className="admin-history-top">
+          <div className="admin-history-title">
+            <strong>
+              {isDeleted
+                ? details.title || `Task #${entry.task_id}`
+                : entry.task_title || `Task #${entry.task_id}`}
+            </strong>
+
+            <span className={`admin-history-action ${entry.action}`}>
+              {isDeleted
+                ? "Deleted"
+                : entry.action.replace("_", " ")}
             </span>
           </div>
+
+          <span className="admin-history-date">
+            {entry.created_at}
+          </span>
         </div>
-      ))}
+
+        {isDeleted ? (
+          <div className="admin-history-details">
+            <div className="admin-history-task-info">
+              <div>
+                <span>Status</span>
+                <strong className={`history-status ${details.status || ""}`}>
+                  {details.status === "in_progress"
+                    ? "In Progress"
+                    : details.status
+                      ? details.status.charAt(0).toUpperCase() +
+                        details.status.slice(1)
+                      : "—"}
+                </strong>
+              </div>
+
+              <div>
+                <span>Priority</span>
+                <strong
+                  className={`history-priority ${details.priority || ""}`}
+                >
+                  {details.priority
+                    ? details.priority.charAt(0).toUpperCase() +
+                      details.priority.slice(1)
+                    : "—"}
+                </strong>
+              </div>
+
+              <div>
+                <span>Due Date</span>
+                <strong>{details.due_date || "—"}</strong>
+              </div>
+
+              <div>
+                <span>Action</span>
+                <strong className="history-action-text">
+                  Task removed
+                </strong>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p>{entry.details}</p>
+        )}
+      </div>
+    </div>
+  );
+})}
     </div>
   )}
 </section>
@@ -704,13 +807,28 @@ const handleEditTask = (task) => {
 
         <section className="admin-section">
   <div className="admin-section-header">
-    <div>
-      <h2>User Management</h2>
-      <p>
-        View and manage registered users.
-      </p>
-    </div>
+  <div>
+    <h2>User Management</h2>
+    <p>
+      View and manage registered users.
+    </p>
   </div>
+
+  <button
+    type="button"
+    className="refresh-admin-users-button"
+    onClick={() => {
+      const token = localStorage.getItem("token");
+
+      if (token) {
+        loadAdminUsers(token);
+      }
+    }}
+    disabled={adminUsersLoading}
+  >
+    {adminUsersLoading ? "Refreshing..." : "↻ Refresh"}
+  </button>
+</div>
 
   {adminUsersLoading ? (
     <p className="admin-table-message">Loading users...</p>
@@ -777,6 +895,56 @@ const handleEditTask = (task) => {
   )}
 </section>
       </section>
+)}
+{adminTaskToDelete && (
+  <div
+    className="modal-overlay"
+    onClick={() => setAdminTaskToDelete(null)}
+  >
+    <div
+      className="delete-modal"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="delete-modal-icon">
+        !
+      </div>
+
+      <h3>Delete this task?</h3>
+
+      <p>
+        Are you sure you want to delete{" "}
+        <strong>{adminTaskToDelete.title}</strong>?
+        This will permanently remove the task
+        from this user's account.
+      </p>
+
+      <div className="delete-modal-actions">
+        <button
+          type="button"
+          className="cancel-delete-button"
+          onClick={() =>
+            setAdminTaskToDelete(null)
+          }
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          className="confirm-delete-button"
+          onClick={async () => {
+            await handleAdminDeleteTask(
+              adminTaskToDelete.id
+            );
+
+            setAdminTaskToDelete(null);
+          }}
+        >
+          Delete task
+        </button>
+      </div>
+    </div>
+  </div>
 )}
     </main>
   );

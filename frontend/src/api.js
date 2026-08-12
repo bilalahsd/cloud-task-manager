@@ -249,3 +249,25 @@ export async function resendOtp(email) {
 
   return data;
 }
+
+export async function deleteAdminTask(token, taskId) {
+  const response = await fetch(
+    `${API_URL}/admin/tasks/${taskId}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.message || "Failed to delete task"
+    );
+  }
+
+  return data;
+}

@@ -211,4 +211,68 @@ router.put(
   }
 );
 
+router.delete(
+  "/tasks/:id",
+  authenticateToken,
+  authorizeAdmin,
+  async (req, res) => {
+    try {
+      const taskId = req.params.id;
+
+      // Get task details before deleting it
+      const [tasks] = await db.query(
+        `SELECT id, user_id, title, description, status, priority, due_date
+         FROM tasks
+         WHERE id = ?`,
+        [taskId]
+      );
+
+      if (tasks.length === 0) {
+        return res.status(404).json({
+          message: "Task not found",
+        });
+      }
+
+      const task = tasks[0];
+
+      // Record the admin deletion in task history
+      await db.query(
+        `INSERT INTO task_history
+         (task_id, user_id, action, details)
+         VALUES (?, ?, ?, ?)`,
+        [
+          task.id,
+          task.user_id,
+          "TASK_DELETED",
+          JSON.stringify({
+            title: task.title,
+            description: task.description,
+            status: task.status,
+            priority: task.priority,
+            due_date: task.due_date,
+            deleted_by: req.user.id,
+          }),
+        ]
+      );
+
+      // Delete the task
+      await db.query(
+        `DELETE FROM tasks
+         WHERE id = ?`,
+        [taskId]
+      );
+
+      res.json({
+        message: "Task deleted successfully by admin",
+      });
+    } catch (error) {
+      console.error("Admin task delete error:", error);
+
+      res.status(500).json({
+        message: "Failed to delete task",
+      });
+    }
+  }
+);
+
 module.exports = router;

@@ -1996,7 +1996,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 .admin-history-item {
   display: flex;
   gap: 16px;
-  padding: 18px 20px;
+  padding: 20px 22px;
   background: rgba(17, 18, 28, 0.65);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -2014,31 +2014,40 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   background: #60a5fa;
 }
 
+.admin-history-item-deleted .admin-history-marker {
+  background: #f87171;
+}
+
 .admin-history-content {
   flex: 1;
+  min-width: 0;
 }
 
 .admin-history-top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: 20px;
 }
 
-.admin-history-top strong {
+.admin-history-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.admin-history-title strong {
   color: #ffffff;
   font-size: 14px;
-}
-
-.admin-history-content p {
-  margin: 6px 0;
-  color: #a0a6b8;
-  font-size: 13px;
+  font-weight: 600;
 }
 
 .admin-history-date {
+  flex-shrink: 0;
   color: #6f7587;
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .admin-history-action {
@@ -2065,6 +2074,79 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 
 .admin-history-action.deleted {
   color: #f87171;
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.admin-history-details {
+  margin-top: 14px;
+}
+
+.admin-history-task-info {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.admin-history-task-info > div {
+  padding: 12px 13px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 9px;
+}
+
+.admin-history-task-info span {
+  display: block;
+  margin-bottom: 6px;
+  color: #6f7587;
+  font-size: 11px;
+}
+
+.admin-history-task-info strong {
+  display: block;
+  color: #e4e4e7;
+  font-size: 12px;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.history-status.pending {
+  color: #facc15 !important;
+}
+
+.history-status.in_progress {
+  color: #60a5fa !important;
+}
+
+.history-status.completed {
+  color: #4ade80 !important;
+}
+
+.history-priority.low {
+  color: #94a3b8 !important;
+}
+
+.history-priority.medium {
+  color: #facc15 !important;
+}
+
+.history-priority.high {
+  color: #f87171 !important;
+}
+
+.history-action-text {
+  color: #f87171 !important;
+}
+
+.admin-history-content > p {
+  margin: 8px 0 0;
+  color: #a0a6b8;
+  font-size: 13px;
+}
+
+@media (max-width: 800px) {
+  .admin-history-task-info {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 @media (max-width: 600px) {
@@ -2072,6 +2154,18 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
     align-items: flex-start;
     flex-direction: column;
     gap: 8px;
+  }
+
+  .admin-history-title {
+    flex-wrap: wrap;
+  }
+
+  .admin-history-date {
+    font-size: 11px;
+  }
+
+  .admin-history-task-info {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -2384,4 +2478,58 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   text-align: right;
   font-size: 11px;
   color: #8f96ff;
+}
+
+.admin-delete-task-button {
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  background: rgba(239, 68, 68, 0.08);
+  color: #f87171;
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.admin-delete-task-button:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fca5a5;
+}
+
+.refresh-admin-users-button {
+  padding: 9px 14px;
+
+  border: 1px solid #30313b;
+  border-radius: 9px;
+
+  background: #11121a;
+  color: #a1a1aa;
+
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition: 0.2s ease;
+}
+
+.refresh-admin-users-button:hover {
+  border-color: #6366f1;
+  color: #c4b5fd;
+  background: #181922;
+}
+
+.refresh-admin-users-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.admin-section-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 22px;
 }
