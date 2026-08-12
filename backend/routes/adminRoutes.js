@@ -171,6 +171,258 @@ router.get(
   }
 );
 
+// GET all tasks for admin task management
+router.get(
+  "/tasks",
+  authenticateToken,
+  authorizeAdmin,
+  async (req, res) => {
+    try {
+      const [tasks] = await db.query(
+        `SELECT
+           t.id,
+           t.user_id,
+           t.title,
+           t.description,
+           t.status,
+           t.priority,
+           t.due_date,
+           t.created_at,
+           u.name AS user_name,
+           u.email AS user_email
+         FROM tasks t
+         JOIN users u ON t.user_id = u.id
+         ORDER BY t.created_at DESC`
+      );
+
+      res.json(tasks);
+    } catch (error) {
+      console.error("Admin tasks error:", error);
+
+      res.status(500).json({
+        message: "Failed to load admin tasks",
+      });
+    }
+  }
+);
+
+// CREATE a task as administrator
+router.post(
+  "/tasks",
+  authenticateToken,
+  authorizeAdmin,
+  async (req, res) => {
+    try {
+      const {
+        title,
+        description,
+        status,
+        priority,
+        due_date,
+        user_id,
+      } = req.body;
+
+      if (!title || !title.trim()) {
+        return res.status(400).json({
+          message: "Task title is required",
+        });
+      }
+
+      if (!user_id) {
+        return res.status(400).json({
+          message: "A user must be selected",
+        });
+      }
+
+      if (
+        !["pending", "in_progress", "completed"].includes(
+          status || "pending"
+        )
+      ) {
+        return res.status(400).json({
+          message: "Invalid task status",
+        });
+      }
+
+      if (
+        !["low", "medium", "high"].includes(
+          priority || "medium"
+        )
+      ) {
+        return res.status(400).json({
+          message: "Invalid task priority",
+        });
+      }
+
+      const [users] = await db.query(
+        `SELECT id, name
+         FROM users
+         WHERE id = ? AND role = 'user'`,
+        [user_id]
+      );
+
+      if (users.length === 0) {
+        return res.status(404).json({
+          message: "User not found",
+        });
+      }
+
+      const cleanDueDate = due_date
+        ? due_date.split("T")[0]
+        : null;
+
+      const [result] = await db.query(
+        `INSERT INTO tasks
+         (user_id, title, description, status, priority, due_date)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          user_id,
+          title.trim(),
+          description?.trim() || null,
+          status || "pending",
+          priority || "medium",
+          cleanDueDate,
+        ]
+      );
+
+      await db.query(
+        `INSERT INTO task_history
+         (task_id, user_id, action, details)
+         VALUES (?, ?, ?, ?)`,
+        [
+          result.insertId,
+          user_id,
+          "ADMIN_TASK_CREATED",
+          `Task created and assigned by administrator to ${users[0].name}`,
+        ]
+      );
+
+      res.status(201).json({
+        message: "Task created and assigned successfully",
+        taskId: result.insertId,
+      });
+    } catch (error) {
+      console.error("Admin task create error:", error);
+
+      res.status(500).json({
+        message: "Failed to create task",
+      });
+    }
+  }
+);
+
+// Reassign an existing task to another user
+router.put(
+  "/tasks/:id/assign",
+  authenticateToken,
+  authorizeAdmin,
+  async (req, res) => {
+    try {
+      const taskId = req.params.id;
+      const { user_id } = req.body;
+
+      if (!user_id) {
+        return res.status(400).json({
+          message: "A user must be selected",
+        });
+      }
+
+      const [tasks] = await db.query(
+        `SELECT
+           id,
+           user_id,
+           title
+         FROM tasks
+         WHERE id = ?`,
+        [taskId]
+      );
+
+      if (tasks.length === 0) {
+        return res.status(404).json({
+          message: "Task not found",
+        });
+      }
+
+      const task = tasks[0];
+
+      if (Number(task.user_id) === Number(user_id)) {
+        return res.status(400).json({
+          message: "Task is already assigned to this user",
+        });
+      }
+
+      const [oldUsers] = await db.query(
+        `SELECT id, name
+         FROM users
+         WHERE id = ?`,
+        [task.user_id]
+      );
+
+      const [newUsers] = await db.query(
+        `SELECT id, name
+         FROM users
+         WHERE id = ? AND role = 'user'`,
+        [user_id]
+      );
+
+      if (newUsers.length === 0) {
+        return res.status(404).json({
+          message: "New user not found",
+        });
+      }
+
+      const oldUserName =
+        oldUsers.length > 0
+          ? oldUsers[0].name
+          : `User #${task.user_id}`;
+
+      const newUserName = newUsers[0].name;
+
+      await db.query(
+        `UPDATE tasks
+         SET user_id = ?
+         WHERE id = ?`,
+        [user_id, taskId]
+      );
+
+      // Keep the reassignment visible in both users' histories.
+      await db.query(
+        `INSERT INTO task_history
+         (task_id, user_id, action, details)
+         VALUES (?, ?, ?, ?)`,
+        [
+          taskId,
+          task.user_id,
+          "TASK_REASSIGNED",
+          `Task reassigned by administrator from ${oldUserName} to ${newUserName}`,
+        ]
+      );
+
+      await db.query(
+        `INSERT INTO task_history
+         (task_id, user_id, action, details)
+         VALUES (?, ?, ?, ?)`,
+        [
+          taskId,
+          user_id,
+          "TASK_REASSIGNED",
+          `Task assigned to ${newUserName} by administrator from ${oldUserName}`,
+        ]
+      );
+
+      res.json({
+        message: "Task reassigned successfully",
+      });
+    } catch (error) {
+      console.error("Admin task reassignment error:", error);
+
+      res.status(500).json({
+        message: "Failed to reassign task",
+      });
+    }
+  }
+);
+
 router.put(
   "/tasks/:id/priority",
   authenticateToken,

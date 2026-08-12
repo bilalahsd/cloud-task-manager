@@ -12,6 +12,12 @@ import {
   getAdminUserDetails,
   getAdminUserHistory,
   updateAdminTaskPriority,
+  getMessages,
+  getAdminTasks,
+  createAdminTask,
+  reassignAdminTask,
+  sendMessage,
+  markMessagesRead,
   verifyOtp,
   resendOtp,
 } from "./api";
@@ -25,12 +31,35 @@ function App() {
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminUsers, setAdminUsers] = useState([]);
   const [adminUsersLoading, setAdminUsersLoading] = useState(false);
+  const [adminMessages, setAdminMessages] = useState([]);
+  const [adminMessagesLoading, setAdminMessagesLoading] = useState(false);
+  const [adminMessageText, setAdminMessageText] = useState("");
+  const [adminMessageSending, setAdminMessageSending] = useState(false);
+  const [showAdminChat, setShowAdminChat] = useState(false);
   const [selectedAdminUser, setSelectedAdminUser] = useState(null);
   const [adminUserDetails, setAdminUserDetails] = useState(null);
+
+  const [userMessages, setUserMessages] = useState([]);
+  const [userMessagesLoading, setUserMessagesLoading] = useState(false);
+  const [userMessageText, setUserMessageText] = useState("");
+  const [userMessageSending, setUserMessageSending] = useState(false);
+  const [showUserChat, setShowUserChat] = useState(false);
 
   const [adminUserDetailsLoading, setAdminUserDetailsLoading] = useState(false);
   const [adminUserHistory, setAdminUserHistory] = useState([]);
   const [adminUserHistoryLoading, setAdminUserHistoryLoading] = useState(false);
+
+  const [adminTasks, setAdminTasks] = useState([]);
+  const [adminTasksLoading, setAdminTasksLoading] = useState(false);
+
+  const [showAdminTaskForm, setShowAdminTaskForm] = useState(false);
+  const [adminTaskTitle, setAdminTaskTitle] = useState("");
+  const [adminTaskDescription, setAdminTaskDescription] = useState("");
+  const [adminTaskStatus, setAdminTaskStatus] = useState("pending");
+  const [adminTaskPriority, setAdminTaskPriority] = useState("medium");
+  const [adminTaskDueDate, setAdminTaskDueDate] = useState("");
+  const [adminTaskAssignee, setAdminTaskAssignee] = useState("");
+  const [adminTaskSaving, setAdminTaskSaving] = useState(false);
 
   const [tasks, setTasks] = useState([]);
   const [tasksLoading, setTasksLoading] = useState(true);
@@ -103,6 +132,7 @@ function App() {
   if (parsedUser.role === "admin") {
     loadAdminDashboard(token);
     loadAdminUsers(token);
+    loadAdminTasks(token);
   }
 }
   }, []);
@@ -151,6 +181,109 @@ const loadAdminUsers = async (token) => {
   }
 };
 
+const loadAdminTasks = async (token) => {
+  setAdminTasksLoading(true);
+
+  try {
+    const data = await getAdminTasks(token);
+    setAdminTasks(Array.isArray(data) ? data : []);
+  } catch (error) {
+    console.error("Failed to load admin tasks:", error);
+    setAdminTasks([]);
+  } finally {
+    setAdminTasksLoading(false);
+  }
+};
+
+const handleAdminCreateTask = async (e) => {
+  e.preventDefault();
+
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    return;
+  }
+
+  const trimmedTitle = adminTaskTitle.trim();
+  const trimmedDescription = adminTaskDescription.trim();
+
+  if (!trimmedTitle) {
+    alert("Task title cannot be empty.");
+    return;
+  }
+
+  if (!adminTaskAssignee) {
+    alert("Please select a user.");
+    return;
+  }
+
+  if (adminTaskDueDate) {
+    const today = new Date().toISOString().split("T")[0];
+
+    if (adminTaskDueDate < today) {
+      alert("Due date cannot be in the past.");
+      return;
+    }
+  }
+
+  setAdminTaskSaving(true);
+
+  try {
+    await createAdminTask(token, {
+      title: trimmedTitle,
+      description: trimmedDescription,
+      status: adminTaskStatus,
+      priority: adminTaskPriority,
+      due_date: adminTaskDueDate || null,
+      user_id: Number(adminTaskAssignee),
+    });
+
+    setAdminTaskTitle("");
+    setAdminTaskDescription("");
+    setAdminTaskStatus("pending");
+    setAdminTaskPriority("medium");
+    setAdminTaskDueDate("");
+    setAdminTaskAssignee("");
+    setShowAdminTaskForm(false);
+
+    await loadAdminTasks(token);
+    await loadAdminDashboard(token);
+    await loadAdminUsers(token);
+  } catch (error) {
+    console.error("Failed to create admin task:", error);
+    alert(error.message);
+  } finally {
+    setAdminTaskSaving(false);
+  }
+};
+
+const handleAdminTaskAssignment = async (taskId, userId) => {
+  const token = localStorage.getItem("token");
+
+  if (!token || !userId) {
+    return;
+  }
+
+  try {
+    await reassignAdminTask(
+      token,
+      taskId,
+      Number(userId)
+    );
+
+    await loadAdminTasks(token);
+    await loadAdminDashboard(token);
+    await loadAdminUsers(token);
+
+    if (selectedAdminUser) {
+      await loadAdminUserDetails(selectedAdminUser);
+    }
+  } catch (error) {
+    console.error("Failed to reassign task:", error);
+    alert(error.message);
+  }
+};
+
 const loadAdminUserDetails = async (userId) => {
   const token = localStorage.getItem("token");
 
@@ -169,12 +302,161 @@ const loadAdminUserDetails = async (userId) => {
 
     setAdminUserDetails(details);
     setAdminUserHistory(history);
+    setAdminMessages([]);
     setSelectedAdminUser(userId);
+
+    await loadAdminMessages(userId);
   } catch (error) {
     console.error("Failed to load user details:", error);
   } finally {
     setAdminUserDetailsLoading(false);
     setAdminUserHistoryLoading(false);
+  }
+};
+
+const loadAdminMessages = async (userId) => {
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    return;
+  }
+
+  setAdminMessagesLoading(true);
+
+  try {
+    const data = await getMessages(token, userId);
+    setAdminMessages(Array.isArray(data) ? data : []);
+  } catch (error) {
+    console.error("Failed to load messages:", error);
+    setAdminMessages([]);
+  } finally {
+    setAdminMessagesLoading(false);
+  }
+};
+
+const handleAdminOpenChat = async () => {
+  setShowAdminChat(true);
+
+  const token = localStorage.getItem("token");
+
+  if (!token || !selectedAdminUser) {
+    return;
+  }
+
+  try {
+    await markMessagesRead(token, selectedAdminUser);
+
+    setAdminMessages((messages) =>
+      messages.map((message) =>
+        message.receiver_id === user.id
+          ? { ...message, is_read: 1 }
+          : message
+      )
+    );
+  } catch (error) {
+    console.error("Failed to mark messages as read:", error);
+  }
+};
+
+const handleUserOpenChat = async () => {
+  setShowUserChat(true);
+
+  const token = localStorage.getItem("token");
+
+  if (!token || !user) {
+    return;
+  }
+
+  try {
+    await markMessagesRead(token, user.id);
+
+    setUserMessages((messages) =>
+      messages.map((message) =>
+        message.receiver_id === user.id
+          ? { ...message, is_read: 1 }
+          : message
+      )
+    );
+  } catch (error) {
+    console.error("Failed to mark user messages as read:", error);
+  }
+};
+
+const loadUserMessages = async () => {
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    return;
+  }
+
+  setUserMessagesLoading(true);
+
+  try {
+    const data = await getMessages(token, user.id);
+
+    setUserMessages(Array.isArray(data) ? data : []);
+
+  } catch (error) {
+    console.error("Failed to load user messages:", error);
+    setUserMessages([]);
+  } finally {
+    setUserMessagesLoading(false);
+  }
+};
+
+const handleUserSendMessage = async (e) => {
+  e.preventDefault();
+
+  const token = localStorage.getItem("token");
+  const trimmedMessage = userMessageText.trim();
+
+  if (!token || !trimmedMessage) {
+    return;
+  }
+
+  setUserMessageSending(true);
+
+  try {
+    await sendMessage(token, user.id, trimmedMessage);
+
+    setUserMessageText("");
+
+    await loadUserMessages();
+  } catch (error) {
+    console.error("Failed to send user message:", error);
+    alert(error.message);
+  } finally {
+    setUserMessageSending(false);
+  }
+};
+
+const handleAdminSendMessage = async (e) => {
+  e.preventDefault();
+
+  const token = localStorage.getItem("token");
+  const trimmedMessage = adminMessageText.trim();
+
+  if (!token || !selectedAdminUser || !trimmedMessage) {
+    return;
+  }
+
+  setAdminMessageSending(true);
+
+  try {
+    await sendMessage(
+      token,
+      selectedAdminUser,
+      trimmedMessage
+    );
+
+    setAdminMessageText("");
+
+    await loadAdminMessages(selectedAdminUser);
+  } catch (error) {
+    console.error("Failed to send message:", error);
+    alert(error.message);
+  } finally {
+    setAdminMessageSending(false);
   }
 };
 
@@ -335,6 +617,7 @@ if (data.token) {
   if (data.user.role === "admin") {
     await loadAdminDashboard(data.token);
     await loadAdminUsers(data.token);
+    await loadAdminTasks(data.token);
   }
 }
         else {
@@ -480,12 +763,67 @@ const handleEditTask = (task) => {
 };
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
 
-    setUser(null);
-    setTasks([]);
-  };
+  // Authentication
+  setUser(null);
+  setIsLogin(true);
+
+  // User tasks
+  setTasks([]);
+  setTasksLoading(true);
+
+  // Admin dashboard
+  setAdminData(null);
+  setAdminUsers([]);
+  setAdminTasks([]);
+  setAdminUsersLoading(false);
+  setAdminTasksLoading(false);
+  setAdminLoading(false);
+
+  // Admin selected-user state
+  setSelectedAdminUser(null);
+  setAdminUserDetails(null);
+  setAdminUserHistory([]);
+  setAdminUserDetailsLoading(false);
+  setAdminUserHistoryLoading(false);
+
+  // Messaging
+  setAdminMessages([]);
+  setUserMessages([]);
+  setAdminMessageText("");
+  setUserMessageText("");
+  setShowAdminChat(false);
+  setShowUserChat(false);
+
+  // Task forms
+  setShowTaskForm(false);
+  setEditingTask(null);
+  setTaskToDelete(null);
+  setAdminTaskToDelete(null);
+
+  // Admin task form
+  setShowAdminTaskForm(false);
+  setAdminTaskTitle("");
+  setAdminTaskDescription("");
+  setAdminTaskStatus("pending");
+  setAdminTaskPriority("medium");
+  setAdminTaskDueDate("");
+  setAdminTaskAssignee("");
+
+  // Auth form
+  setName("");
+  setEmail("");
+  setPassword("");
+  setMessage("");
+};
+
+  useEffect(() => {
+  if (user && user.role === "user") {
+    loadUserMessages();
+  }
+}, [user]);
 
   if (user && user.role === "admin") {
   return (
@@ -513,6 +851,7 @@ const handleEditTask = (task) => {
         setSelectedAdminUser(null);
         setAdminUserDetails(null);
         setAdminUserHistory([]);
+        setAdminMessages([]);
       }}
     >
       ← Back to Users
@@ -577,6 +916,116 @@ const handleEditTask = (task) => {
         </div>
       </div>
     </section>
+
+    {!showAdminChat && (
+  <button
+  type="button"
+  className="admin-chat-launcher"
+  onClick={handleAdminOpenChat}
+>
+  {adminMessages.some(
+    (message) =>
+      message.receiver_id === user.id &&
+      message.is_read === 0
+  ) && (
+    <span className="admin-chat-launcher-dot"></span>
+  )}
+
+  Messages
+</button>
+)}
+
+{showAdminChat && (
+  <div className="admin-chat-widget">
+    <div className="admin-chat-header">
+      <div>
+        <strong>{adminUserDetails.user.name}</strong>
+        <span>Direct messages</span>
+      </div>
+
+      <button
+        type="button"
+        className="admin-chat-close"
+        onClick={() => setShowAdminChat(false)}
+        aria-label="Close messages"
+      >
+        ×
+      </button>
+    </div>
+
+    <div className="admin-chat-list">
+      {adminMessagesLoading ? (
+        <div className="admin-chat-empty">
+          Loading messages...
+        </div>
+      ) : adminMessages.length === 0 ? (
+        <div className="admin-chat-empty">
+          No messages yet.
+          <span>Start a conversation with this user.</span>
+        </div>
+      ) : (
+        adminMessages.map((msg) => {
+          const isAdminMessage = msg.sender_id === user.id;
+
+          return (
+            <div
+              key={msg.id}
+              className={`admin-chat-message ${
+                isAdminMessage
+                  ? "admin-chat-message-sent"
+                  : "admin-chat-message-received"
+              }`}
+            >
+              <div className="admin-chat-bubble">
+                <p>{msg.message}</p>
+
+                <span>
+  {new Date(msg.created_at).toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  })}
+
+  {isAdminMessage && (
+    <span className={`admin-chat-read-status ${msg.is_read ? "read" : ""}`}>
+      {msg.is_read ? "Read" : "Sent"}
+    </span>
+  )}
+</span>
+              </div>
+            </div>
+          );
+        })
+      )}
+    </div>
+
+    <form
+      className="admin-chat-form"
+      onSubmit={handleAdminSendMessage}
+    >
+      <input
+        type="text"
+        value={adminMessageText}
+        onChange={(e) => setAdminMessageText(e.target.value)}
+        placeholder="Type a message..."
+        maxLength={1000}
+        disabled={adminMessageSending}
+      />
+
+      <button
+        type="submit"
+        disabled={
+          adminMessageSending ||
+          !adminMessageText.trim()
+        }
+      >
+        {adminMessageSending ? "..." : "Send"}
+      </button>
+    </form>
+  </div>
+)}
 
     <section className="admin-section admin-user-tasks">
       <div className="admin-section-header">
@@ -887,6 +1336,285 @@ const handleEditTask = (task) => {
       })
     : "Never"}
 </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
+</section>
+<section className="admin-section admin-task-management">
+  <div className="admin-section-header">
+    <div>
+      <h2>Task Management</h2>
+      <p>Create tasks and assign them to specific users.</p>
+    </div>
+
+    <div className="admin-task-management-actions">
+      <button
+        type="button"
+        className="refresh-admin-users-button"
+        onClick={() => {
+          const token = localStorage.getItem("token");
+
+          if (token) {
+            loadAdminTasks(token);
+          }
+        }}
+        disabled={adminTasksLoading}
+      >
+        {adminTasksLoading ? "Refreshing..." : "↻ Refresh"}
+      </button>
+
+      <button
+        type="button"
+        className="new-task-button"
+        onClick={() => setShowAdminTaskForm(true)}
+      >
+        + Create Task
+      </button>
+    </div>
+  </div>
+
+  {showAdminTaskForm && (
+    <div className="admin-task-form-card">
+      <div className="task-form-header">
+        <div>
+          <h2>Create Task</h2>
+          <p>Create a task and assign it to a user.</p>
+        </div>
+
+        <button
+          type="button"
+          className="close-task-button"
+          onClick={() => setShowAdminTaskForm(false)}
+        >
+          ×
+        </button>
+      </div>
+
+      <form onSubmit={handleAdminCreateTask}>
+        <div className="task-input-group">
+          <label>Task title</label>
+
+          <input
+            type="text"
+            value={adminTaskTitle}
+            onChange={(e) =>
+              setAdminTaskTitle(e.target.value)
+            }
+            placeholder="e.g. Configure AWS deployment"
+            maxLength={100}
+            required
+          />
+        </div>
+
+        <div className="task-input-group">
+          <label>Description</label>
+
+          <textarea
+            value={adminTaskDescription}
+            onChange={(e) =>
+              setAdminTaskDescription(e.target.value)
+            }
+            placeholder="Describe what needs to be done..."
+            rows="4"
+            maxLength={500}
+          />
+        </div>
+
+        <div className="admin-task-form-grid">
+          <div className="task-input-group">
+            <label>Assign to</label>
+
+            <select
+              value={adminTaskAssignee}
+              onChange={(e) =>
+                setAdminTaskAssignee(e.target.value)
+              }
+              required
+            >
+              <option value="">
+                Select a user
+              </option>
+
+              {adminUsers
+                .filter((item) => item.role === "user")
+                .map((item) => (
+                  <option
+                    key={item.id}
+                    value={item.id}
+                  >
+                    {item.name} — {item.email}
+                  </option>
+                ))}
+            </select>
+          </div>
+
+          <div className="task-input-group">
+            <label>Status</label>
+
+            <select
+              value={adminTaskStatus}
+              onChange={(e) =>
+                setAdminTaskStatus(e.target.value)
+              }
+            >
+              <option value="pending">
+                Pending
+              </option>
+              <option value="in_progress">
+                In Progress
+              </option>
+              <option value="completed">
+                Completed
+              </option>
+            </select>
+          </div>
+
+          <div className="task-input-group">
+            <label>Priority</label>
+
+            <select
+              value={adminTaskPriority}
+              onChange={(e) =>
+                setAdminTaskPriority(e.target.value)
+              }
+            >
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+
+          <div className="task-input-group">
+            <label>Due date</label>
+
+            <input
+              type="date"
+              value={adminTaskDueDate}
+              onChange={(e) =>
+                setAdminTaskDueDate(e.target.value)
+              }
+            />
+          </div>
+        </div>
+
+        <div className="task-form-actions">
+          <button
+            type="button"
+            className="cancel-task-button"
+            onClick={() =>
+              setShowAdminTaskForm(false)
+            }
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            className="primary-button create-task-submit"
+            disabled={adminTaskSaving}
+          >
+            {adminTaskSaving
+              ? "Creating..."
+              : "Create task →"}
+          </button>
+        </div>
+      </form>
+    </div>
+  )}
+
+  {adminTasksLoading ? (
+    <div className="admin-empty-state">
+      <p>Loading tasks...</p>
+    </div>
+  ) : adminTasks.length === 0 ? (
+    <div className="admin-empty-state">
+      <h3>No tasks found</h3>
+      <p>Create a task and assign it to a user.</p>
+    </div>
+  ) : (
+    <div className="admin-users-table admin-task-management-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Task</th>
+            <th>Assigned User</th>
+            <th>Status</th>
+            <th>Priority</th>
+            <th>Due Date</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {adminTasks.map((task) => (
+            <tr key={task.id}>
+              <td>
+                <div className="admin-task-name-cell">
+                  <strong>{task.title}</strong>
+
+                  {task.description && (
+                    <span>{task.description}</span>
+                  )}
+                </div>
+              </td>
+
+              <td>
+                <select
+                  className="admin-assignee-select"
+                  value={task.user_id}
+                  onChange={(e) =>
+                    handleAdminTaskAssignment(
+                      task.id,
+                      e.target.value
+                    )
+                  }
+                >
+                  {adminUsers
+                    .filter(
+                      (item) =>
+                        item.role === "user"
+                    )
+                    .map((item) => (
+                      <option
+                        key={item.id}
+                        value={item.id}
+                      >
+                        {item.name}
+                      </option>
+                    ))}
+                </select>
+              </td>
+
+              <td>
+                <span
+                  className={`status ${task.status}`}
+                >
+                  <span className="status-dot"></span>
+                  {task.status === "in_progress"
+                    ? "In Progress"
+                    : task.status.charAt(0).toUpperCase() +
+                      task.status.slice(1)}
+                </span>
+              </td>
+
+              <td>
+                <span
+                  className={`task-priority ${task.priority}`}
+                >
+                  {task.priority.toUpperCase()}
+                </span>
+              </td>
+
+              <td>
+                {task.due_date || "—"}
+              </td>
+
+              <td>
+                {task.created_at}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -1296,6 +2024,117 @@ const handleEditTask = (task) => {
             </div>
           </div>
         )}
+
+        {!showUserChat && (
+  <button
+  type="button"
+  className="admin-chat-launcher"
+  onClick={handleUserOpenChat}
+>
+  {userMessages.some(
+    (message) =>
+      message.receiver_id === user.id &&
+      message.is_read === 0
+  ) && (
+    <span className="admin-chat-launcher-dot"></span>
+  )}
+
+  Messages
+</button>
+)}
+
+{showUserChat && (
+  <div className="admin-chat-widget">
+    <div className="admin-chat-header">
+      <div>
+        <strong>Administrator</strong>
+        <span>Direct messages</span>
+      </div>
+
+      <button
+        type="button"
+        className="admin-chat-close"
+        onClick={() => setShowUserChat(false)}
+        aria-label="Close messages"
+      >
+        ×
+      </button>
+    </div>
+
+    <div className="admin-chat-list">
+      {userMessagesLoading ? (
+        <div className="admin-chat-empty">
+          Loading messages...
+        </div>
+      ) : userMessages.length === 0 ? (
+        <div className="admin-chat-empty">
+          No messages yet.
+          <span>Send a message to the administrator.</span>
+        </div>
+      ) : (
+        userMessages.map((msg) => {
+          const isUserMessage = msg.sender_id === user.id;
+
+          return (
+            <div
+              key={msg.id}
+              className={`admin-chat-message ${
+                isUserMessage
+                  ? "admin-chat-message-sent"
+                  : "admin-chat-message-received"
+              }`}
+            >
+              <div className="admin-chat-bubble">
+                <p>{msg.message}</p>
+
+                <span>
+  {new Date(msg.created_at).toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  })}
+
+  {isUserMessage && (
+    <span className={`admin-chat-read-status ${msg.is_read ? "read" : ""}`}>
+      {msg.is_read ? "Read" : "Sent"}
+    </span>
+  )}
+</span>
+              </div>
+            </div>
+          );
+        })
+      )}
+    </div>
+
+    <form
+      className="admin-chat-form"
+      onSubmit={handleUserSendMessage}
+    >
+      <input
+        type="text"
+        value={userMessageText}
+        onChange={(e) => setUserMessageText(e.target.value)}
+        placeholder="Message the administrator..."
+        maxLength={1000}
+        disabled={userMessageSending}
+      />
+
+      <button
+        type="submit"
+        disabled={
+          userMessageSending ||
+          !userMessageText.trim()
+        }
+      >
+        {userMessageSending ? "..." : "Send"}
+      </button>
+    </form>
+  </div>
+)}
+
       </main>
     );
   }

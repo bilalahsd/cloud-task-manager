@@ -209,6 +209,76 @@ export async function updateAdminTaskPriority(token, taskId, priority) {
   return data;
 }
 
+export async function getAdminTasks(token) {
+  const response = await fetch(`${API_URL}/admin/tasks`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.message || "Failed to load admin tasks"
+    );
+  }
+
+  return data;
+}
+
+export async function createAdminTask(token, taskData) {
+  const response = await fetch(`${API_URL}/admin/tasks`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(taskData),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.message || "Failed to create task"
+    );
+  }
+
+  return data;
+}
+
+export async function reassignAdminTask(
+  token,
+  taskId,
+  userId
+) {
+  const response = await fetch(
+    `${API_URL}/admin/tasks/${taskId}/assign`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        user_id: userId,
+      }),
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.message || "Failed to reassign task"
+    );
+  }
+
+  return data;
+}
+
 export async function verifyOtp(email, otp) {
   const response = await fetch(`${API_URL}/auth/verify-otp`, {
     method: "POST",
@@ -266,6 +336,76 @@ export async function deleteAdminTask(token, taskId) {
   if (!response.ok) {
     throw new Error(
       data.message || "Failed to delete task"
+    );
+  }
+
+  return data;
+}
+
+export async function getMessages(token, userId) {
+  const response = await fetch(
+    `${API_URL}/messages/${userId}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.message || "Failed to load messages"
+    );
+  }
+
+  return data;
+}
+
+export async function sendMessage(token, userId, message) {
+  const response = await fetch(
+    `${API_URL}/messages/${userId}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        message,
+      }),
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.message || "Failed to send message"
+    );
+  }
+
+  return data;
+}
+
+export async function markMessagesRead(token, userId) {
+  const response = await fetch(
+    `${API_URL}/messages/${userId}/read`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.message || "Failed to mark messages as read"
     );
   }
 
