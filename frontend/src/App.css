@@ -3009,3 +3009,566 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
     align-items: stretch;
   }
 }
+
+/* =========================================================
+   NOTIFICATIONS
+   ========================================================= */
+
+.dashboard-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.notification-wrapper {
+  position: relative;
+}
+
+.notification-button {
+  position: relative;
+  width: 42px;
+  height: 42px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #353641;
+  border-radius: 10px;
+
+  background: #181922;
+  color: #d4d4d8;
+
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.notification-button:hover {
+  border-color: #6366f1;
+  background: #20212d;
+}
+
+.notification-bell {
+  font-size: 17px;
+  line-height: 1;
+}
+
+.notification-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 999px;
+
+  background: #ef4444;
+  color: white;
+
+  font-size: 10px;
+  font-weight: 700;
+
+  border: 2px solid #08090f;
+}
+
+.notification-panel {
+  position: absolute;
+  top: 52px;
+  right: 0;
+
+  width: 360px;
+  max-width: calc(100vw - 30px);
+
+  overflow: hidden;
+
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 16px;
+
+  background: #15161f;
+
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.5);
+
+  z-index: 2000;
+}
+
+.notification-panel-header {
+  padding: 16px 18px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  border-bottom: 1px solid #292a34;
+}
+
+.notification-panel-header div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.notification-panel-header strong {
+  color: #f4f4f5;
+  font-size: 14px;
+}
+
+.notification-panel-header span {
+  color: #71717a;
+  font-size: 11px;
+}
+
+.mark-all-read-button {
+  border: none;
+  background: transparent;
+
+  color: #818cf8;
+
+  font-size: 11px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.mark-all-read-button:hover {
+  color: #a5b4fc;
+}
+
+.notification-list {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.notification-empty {
+  padding: 40px 20px;
+
+  text-align: center;
+
+  color: #71717a;
+  font-size: 13px;
+}
+
+.notification-item {
+  width: 100%;
+  padding: 14px 16px;
+
+  display: flex;
+  gap: 12px;
+
+  border: none;
+  border-bottom: 1px solid #24252e;
+
+  background: transparent;
+  color: inherit;
+
+  text-align: left;
+  cursor: pointer;
+
+  transition: 0.2s ease;
+}
+
+.notification-item:hover {
+  background: #1b1c26;
+}
+
+.notification-item.unread {
+  background: rgba(99, 102, 241, 0.07);
+}
+
+.notification-item.read {
+  opacity: 0.68;
+}
+
+.notification-item-icon {
+  width: 30px;
+  height: 30px;
+
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: rgba(99, 102, 241, 0.12);
+  color: #818cf8;
+
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.notification-item-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.notification-item-content strong {
+  display: block;
+  margin-bottom: 4px;
+
+  color: #e4e4e7;
+  font-size: 12px;
+}
+
+.notification-item-content p {
+  margin: 0 0 5px;
+
+  color: #9294a0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.notification-item-content span {
+  color: #5f616d;
+  font-size: 10px;
+}
+
+@media (max-width: 600px) {
+  .dashboard-header-actions {
+    gap: 6px;
+  }
+
+  .notification-panel {
+    right: -45px;
+    width: 330px;
+  }
+}
+
+/* Notification toast */
+
+.notification-toast {
+  position: absolute;
+
+  top: 58px;
+  right: 0;
+
+  width: 330px;
+  min-height: 72px;
+
+  display: flex;
+  align-items: center;
+  gap: 11px;
+
+  padding: 12px 13px;
+
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  border-radius: 13px;
+
+  background: #191a24;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
+
+  cursor: pointer;
+
+  z-index: 2100;
+
+  animation: notificationToastIn 0.25s ease-out;
+}
+
+.notification-toast:hover {
+  background: #20212d;
+}
+
+.notification-toast-icon {
+  width: 34px;
+  height: 34px;
+
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: rgba(99, 102, 241, 0.14);
+  color: #818cf8;
+
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.notification-toast-content {
+  min-width: 0;
+  flex: 1;
+
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.notification-toast-content strong {
+  color: #f4f4f5;
+  font-size: 12px;
+}
+
+.notification-toast-content span {
+  overflow: hidden;
+
+  color: #9294a0;
+  font-size: 11px;
+  line-height: 1.4;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notification-toast-close {
+  width: 24px;
+  height: 24px;
+
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: none;
+  border-radius: 6px;
+
+  background: transparent;
+  color: #71717a;
+
+  font-size: 18px;
+
+  cursor: pointer;
+}
+
+.notification-toast-close:hover {
+  background: #292a34;
+  color: #e4e4e7;
+}
+
+@keyframes notificationToastIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 600px) {
+  .notification-toast {
+    right: -45px;
+    width: 320px;
+  }
+}
+
+/* =========================================================
+   RESPONSIVE ADMIN TABLES
+   Convert wide tables into clean cards on smaller screens
+   ========================================================= */
+
+@media (max-width: 900px) {
+
+  /* Remove horizontal scrolling */
+  .admin-users-table,
+  .admin-task-table {
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  .admin-users-table table,
+  .admin-task-table table {
+    width: 100%;
+    min-width: 0;
+    border-collapse: separate;
+    border-spacing: 0 10px;
+  }
+
+  /* Hide desktop table headers */
+  .admin-users-table thead,
+  .admin-task-table thead {
+    display: none;
+  }
+
+  /* Turn every row into a card */
+  .admin-users-table tbody tr,
+  .admin-task-table tbody tr {
+    display: block;
+    width: 100%;
+
+    padding: 14px 16px;
+
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 14px;
+
+    background: rgba(17, 18, 28, 0.72);
+  }
+
+  /* Turn cells into neat label/value rows */
+  .admin-users-table tbody td,
+  .admin-task-table tbody td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    width: 100%;
+    min-width: 0;
+
+    padding: 8px 0;
+
+    border: none;
+    text-align: right;
+
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  /* Add labels from the table headers */
+  .admin-users-table tbody td::before {
+    flex-shrink: 0;
+
+    margin-right: 18px;
+
+    color: #71717a;
+    font-size: 11px;
+    font-weight: 600;
+    text-align: left;
+  }
+
+  .admin-users-table tbody td:nth-child(1)::before {
+    content: "Name";
+  }
+
+  .admin-users-table tbody td:nth-child(2)::before {
+    content: "Email";
+  }
+
+  .admin-users-table tbody td:nth-child(3)::before {
+    content: "Role";
+  }
+
+  .admin-users-table tbody td:nth-child(4)::before {
+    content: "Joined";
+  }
+
+  .admin-users-table tbody td:nth-child(5)::before {
+    content: "Total Tasks";
+  }
+
+  .admin-users-table tbody td:nth-child(6)::before {
+    content: "Pending";
+  }
+
+  .admin-users-table tbody td:nth-child(7)::before {
+    content: "In Progress";
+  }
+
+  .admin-users-table tbody td:nth-child(8)::before {
+    content: "Completed";
+  }
+
+  .admin-users-table tbody td:nth-child(9)::before {
+    content: "Last Login";
+  }
+
+  /* Give the user name a stronger visual hierarchy */
+  .admin-users-table tbody td:first-child {
+    padding-top: 2px;
+    padding-bottom: 12px;
+
+    margin-bottom: 4px;
+
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+
+    text-align: left;
+  }
+
+  .admin-users-table tbody td:first-child::before {
+    display: none;
+  }
+
+  .admin-users-table tbody td:first-child .admin-user-name {
+    font-size: 15px;
+  }
+
+  /* Prevent long emails/dates from breaking the card */
+  .admin-users-table tbody td > * {
+    max-width: 62%;
+  }
+
+  /* Task table */
+  .admin-task-table tbody td::before {
+    flex-shrink: 0;
+
+    margin-right: 18px;
+
+    color: #71717a;
+    font-size: 11px;
+    font-weight: 600;
+    text-align: left;
+  }
+
+  .admin-task-table tbody td:nth-child(1)::before {
+    content: "Task";
+  }
+
+  .admin-task-table tbody td:nth-child(2)::before {
+    content: "Assigned User";
+  }
+
+  .admin-task-table tbody td:nth-child(3)::before {
+    content: "Status";
+  }
+
+  .admin-task-table tbody td:nth-child(4)::before {
+    content: "Priority";
+  }
+
+  .admin-task-table tbody td:nth-child(5)::before {
+    content: "Due Date";
+  }
+
+  .admin-task-table tbody td:nth-child(6)::before {
+    content: "Actions";
+  }
+
+  .admin-task-table tbody td > * {
+    max-width: 62%;
+  }
+
+  /* Keep selects/buttons usable */
+  .admin-task-table select,
+  .admin-task-table button {
+    max-width: 62%;
+  }
+}
+
+
+/* =========================================================
+   VERY SMALL WINDOWS
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+  .admin-users-table tbody tr,
+  .admin-task-table tbody tr {
+    padding: 13px 14px;
+    border-radius: 12px;
+  }
+
+  .admin-users-table tbody td,
+  .admin-task-table tbody td {
+    font-size: 12px;
+  }
+
+  .admin-users-table tbody td::before,
+  .admin-task-table tbody td::before {
+    font-size: 10px;
+  }
+
+  .admin-users-table tbody td > *,
+  .admin-task-table tbody td > * {
+    max-width: 58%;
+  }
+}

@@ -163,6 +163,30 @@ router.post(
         [currentUserId, receiverId, message.trim()]
       );
 
+      const [senderRows] = await db.query(
+  `SELECT name
+   FROM users
+   WHERE id = ?`,
+  [currentUserId]
+);
+
+const senderName =
+  senderRows.length > 0
+    ? senderRows[0].name
+    : "Someone";
+
+await db.query(
+  `INSERT INTO notifications
+   (user_id, type, title, message)
+   VALUES (?, ?, ?, ?)`,
+  [
+    receiverId,
+    "message",
+    "New message",
+    `${senderName} sent you a new message.`,
+  ]
+);
+
       res.status(201).json({
         message: "Message sent successfully",
         messageId: result.insertId,

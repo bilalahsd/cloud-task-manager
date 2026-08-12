@@ -286,6 +286,19 @@ router.post(
       );
 
       await db.query(
+  `INSERT INTO notifications
+   (user_id, type, title, message, related_task_id)
+   VALUES (?, ?, ?, ?, ?)`,
+  [
+    user_id,
+    "task_assigned",
+    "New task assigned",
+    `A new task "${title.trim()}" has been assigned to you.`,
+    result.insertId,
+  ]
+);
+
+      await db.query(
         `INSERT INTO task_history
          (task_id, user_id, action, details)
          VALUES (?, ?, ?, ?)`,
@@ -385,6 +398,32 @@ router.put(
         [user_id, taskId]
       );
 
+      await db.query(
+  `INSERT INTO notifications
+   (user_id, type, title, message, related_task_id)
+   VALUES (?, ?, ?, ?, ?)`,
+  [
+    user_id,
+    "task_reassigned",
+    "Task assigned to you",
+    `The task "${task.title}" has been assigned to you by the administrator.`,
+    taskId,
+  ]
+);
+
+await db.query(
+  `INSERT INTO notifications
+   (user_id, type, title, message, related_task_id)
+   VALUES (?, ?, ?, ?, ?)`,
+  [
+    task.user_id,
+    "task_reassigned",
+    "Task reassigned",
+    `The task "${task.title}" has been reassigned to ${newUserName}.`,
+    taskId,
+  ]
+);
+
       // Keep the reassignment visible in both users' histories.
       await db.query(
         `INSERT INTO task_history
@@ -421,6 +460,7 @@ router.put(
       });
     }
   }
+
 );
 
 router.put(
@@ -430,34 +470,75 @@ router.put(
   async (req, res) => {
     try {
       const { priority } = req.body;
+      const taskId = req.params.id;
 
-      if (!["low", "medium", "high"].includes(priority)) {
+      if (
+        !["low", "medium", "high"].includes(priority)
+      ) {
         return res.status(400).json({
           message: "Invalid priority",
         });
       }
 
-      const [result] = await db.query(
-        `UPDATE tasks
-         SET priority = ?
+      const [tasks] = await db.query(
+        `SELECT
+           id,
+           user_id,
+           title,
+           priority
+         FROM tasks
          WHERE id = ?`,
-        [priority, req.params.id]
+        [taskId]
       );
 
-      if (result.affectedRows === 0) {
+      if (tasks.length === 0) {
         return res.status(404).json({
           message: "Task not found",
         });
       }
 
+      const task = tasks[0];
+
+      if (task.priority === priority) {
+        return res.json({
+          message:
+            "Task priority is already set to this value",
+        });
+      }
+
+      await db.query(
+        `UPDATE tasks
+         SET priority = ?
+         WHERE id = ?`,
+        [priority, taskId]
+      );
+
+      await db.query(
+        `INSERT INTO notifications
+         (user_id, type, title, message, related_task_id)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          task.user_id,
+          "task_priority",
+          "Task priority updated",
+          `The priority of "${task.title}" was changed to ${priority.toUpperCase()}.`,
+          task.id,
+        ]
+      );
+
       res.json({
-        message: "Task priority updated successfully",
+        message:
+          "Task priority updated successfully",
       });
     } catch (error) {
-      console.error("Admin priority error:", error);
+      console.error(
+        "Admin priority error:",
+        error
+      );
 
       res.status(500).json({
-        message: "Failed to update task priority",
+        message:
+          "Failed to update task priority",
       });
     }
   }
@@ -487,25 +568,7 @@ router.delete(
 
       const task = tasks[0];
 
-      // Record the admin deletion in task history
-      await db.query(
-        `INSERT INTO task_history
-         (task_id, user_id, action, details)
-         VALUES (?, ?, ?, ?)`,
-        [
-          task.id,
-          task.user_id,
-          "TASK_DELETED",
-          JSON.stringify({
-            title: task.title,
-            description: task.description,
-            status: task.status,
-            priority: task.priority,
-            due_date: task.due_date,
-            deleted_by: req.user.id,
-          }),
-        ]
-      );
+// Record the admin deletion in task history
 
       // Delete the task
       await db.query(

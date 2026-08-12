@@ -411,3 +411,94 @@ export async function markMessagesRead(token, userId) {
 
   return data;
 }
+
+export async function getNotifications(token) {
+  const response = await fetch(
+    `${API_URL}/notifications`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.message || "Failed to load notifications"
+    );
+  }
+
+  return data;
+}
+
+export async function getUnreadNotificationCount(token) {
+  const response = await fetch(
+    `${API_URL}/notifications/unread-count`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.message || "Failed to load notification count"
+    );
+  }
+
+  return data;
+}
+
+export async function markNotificationRead(
+  token,
+  notificationId
+) {
+  const response = await fetch(
+    `${API_URL}/notifications/${notificationId}/read`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.message || "Failed to mark notification as read"
+    );
+  }
+
+  return data;
+}
+
+export async function markAllNotificationsRead(token) {
+  const response = await fetch(
+    `${API_URL}/notifications/read-all`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.message || "Failed to mark notifications as read"
+    );
+  }
+
+  return data;
+}

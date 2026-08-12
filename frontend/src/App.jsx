@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   loginUser,
   registerUser,
@@ -18,6 +18,10 @@ import {
   reassignAdminTask,
   sendMessage,
   markMessagesRead,
+  getNotifications,
+  getUnreadNotificationCount,
+  markNotificationRead,
+  markAllNotificationsRead,
   verifyOtp,
   resendOtp,
 } from "./api";
@@ -38,6 +42,14 @@ function App() {
   const [showAdminChat, setShowAdminChat] = useState(false);
   const [selectedAdminUser, setSelectedAdminUser] = useState(null);
   const [adminUserDetails, setAdminUserDetails] = useState(null);
+
+  const [notifications, setNotifications] = useState([]);
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationToast, setNotificationToast] = useState(null);
+  const notificationCountRef = useRef(null);
+
 
   const [userMessages, setUserMessages] = useState([]);
   const [userMessagesLoading, setUserMessagesLoading] = useState(false);
@@ -119,6 +131,20 @@ function App() {
   return () => clearInterval(timer);
 }, [resendCooldown]);
 
+useEffect(() => {
+  if (!user) {
+    return;
+  }
+
+  loadNotificationCount();
+
+  const interval = setInterval(() => {
+    loadNotificationCount();
+  }, 10000);
+
+  return () => clearInterval(interval);
+}, [user]);
+
   useEffect(() => {
     const savedUser = localStorage.getItem("user");
     const token = localStorage.getItem("token");
@@ -133,6 +159,7 @@ function App() {
     loadAdminDashboard(token);
     loadAdminUsers(token);
     loadAdminTasks(token);
+    loadNotifications();
   }
 }
   }, []);
@@ -178,6 +205,156 @@ const loadAdminUsers = async (token) => {
     console.error("Failed to load admin users:", error);
   } finally {
     setAdminUsersLoading(false);
+  }
+};
+
+const loadNotifications = async () => {
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    return;
+  }
+
+  setNotificationsLoading(true);
+
+  try {
+    const data = await getNotifications(token);
+
+    const list = Array.isArray(data) ? data : [];
+
+    setNotifications(list);
+
+    setNotificationCount(
+      list.filter(
+        (notification) =>
+          Number(notification.is_read) === 0
+      ).length
+    );
+  } catch (error) {
+    console.error(
+      "Failed to load notifications:",
+      error
+    );
+  } finally {
+    setNotificationsLoading(false);
+  }
+};
+
+const loadNotificationCount = async () => {
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    return;
+  }
+
+  try {
+    const data = await getUnreadNotificationCount(token);
+    const newCount = Number(data.unreadCount || 0);
+
+    const previousCount = notificationCountRef.current;
+
+    setNotificationCount(newCount);
+
+    // First check after login/page refresh:
+    // don't show a toast for old notifications.
+    if (previousCount === null) {
+      notificationCountRef.current = newCount;
+      return;
+    }
+
+    // Only show toast when a genuinely new unread notification arrives.
+    if (newCount > previousCount) {
+      const latestNotifications =
+        await getNotifications(token);
+
+      const latestUnread = Array.isArray(
+        latestNotifications
+      )
+        ? latestNotifications.find(
+            (notification) =>
+              Number(notification.is_read) === 0
+          )
+        : null;
+
+      if (latestUnread) {
+        setNotificationToast(latestUnread);
+
+        setTimeout(() => {
+          setNotificationToast(null);
+        }, 5000);
+      }
+    }
+
+    notificationCountRef.current = newCount;
+  } catch (error) {
+    console.error(
+      "Failed to load notification count:",
+      error
+    );
+  }
+};
+
+const handleNotificationClick = async (
+  notification
+) => {
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    return;
+  }
+
+  if (Number(notification.is_read) === 1) {
+    return;
+  }
+
+  try {
+    await markNotificationRead(
+      token,
+      notification.id
+    );
+
+    setNotifications((current) =>
+      current.map((item) =>
+        item.id === notification.id
+          ? { ...item, is_read: 1 }
+          : item
+      )
+    );
+
+    setNotificationCount((current) =>
+      Math.max(current - 1, 0)
+    );
+  } catch (error) {
+    console.error(
+      "Failed to mark notification as read:",
+      error
+    );
+  }
+};
+
+const handleMarkAllNotificationsRead = async () => {
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    return;
+  }
+
+  try {
+    await markAllNotificationsRead(token);
+
+    setNotifications((current) =>
+      current.map((notification) => ({
+        ...notification,
+        is_read: 1,
+      }))
+    );
+
+    setNotificationCount(0);
+  } catch (error) {
+    console.error(
+      "Failed to mark all notifications as read:",
+      error
+    );
   }
 };
 
@@ -613,6 +790,7 @@ if (data.token) {
   setUser(data.user);
 
   await loadTasks(data.token);
+  await loadNotifications();
 
   if (data.user.role === "admin") {
     await loadAdminDashboard(data.token);
@@ -765,6 +943,11 @@ const handleEditTask = (task) => {
   const handleLogout = () => {
   localStorage.removeItem("token");
   localStorage.removeItem("user");
+  setNotifications([]);
+  setNotificationCount(0);
+  setShowNotifications(false);
+  notificationCountRef.current = null;
+  setNotificationToast(null);
 
   // Authentication
   setUser(null);
@@ -825,7 +1008,152 @@ const handleEditTask = (task) => {
   }
 }, [user]);
 
-  if (user && user.role === "admin") {
+  const notificationUI = (
+  <div className="notification-wrapper">
+    <button
+      type="button"
+      className="notification-button"
+      onClick={async () => {
+        const nextState = !showNotifications;
+
+        setShowNotifications(nextState);
+
+        if (nextState) {
+          await loadNotifications();
+        }
+      }}
+      aria-label="Notifications"
+    >
+      <span className="notification-bell">🔔</span>
+
+      {notificationCount > 0 && (
+        <span className="notification-badge">
+          {notificationCount > 99
+            ? "99+"
+            : notificationCount}
+        </span>
+      )}
+    </button>
+
+    {showNotifications && (
+      <div className="notification-panel">
+        <div className="notification-panel-header">
+          <div>
+            <strong>Notifications</strong>
+            <span>
+              {notificationCount} unread
+            </span>
+          </div>
+
+          {notificationCount > 0 && (
+            <button
+              type="button"
+              className="mark-all-read-button"
+              onClick={handleMarkAllNotificationsRead}
+            >
+              Mark all read
+            </button>
+          )}
+        </div>
+
+        <div className="notification-list">
+          {notificationsLoading ? (
+            <div className="notification-empty">
+              Loading notifications...
+            </div>
+          ) : notifications.length === 0 ? (
+            <div className="notification-empty">
+              No notifications yet.
+            </div>
+          ) : (
+            notifications.map((notification) => (
+              <button
+                type="button"
+                key={notification.id}
+                className={`notification-item ${
+                  Number(notification.is_read) === 0
+                    ? "unread"
+                    : "read"
+                }`}
+                onClick={() =>
+                  handleNotificationClick(notification)
+                }
+              >
+                <div className="notification-item-icon">
+                  {notification.type === "message"
+                    ? "✉"
+                    : "•"}
+                </div>
+
+                <div className="notification-item-content">
+                  <strong>
+                    {notification.title}
+                  </strong>
+
+                  <p>
+                    {notification.message}
+                  </p>
+
+                  <span>
+                    {new Date(
+                      notification.created_at
+                    ).toLocaleString("en-GB", {
+                      day: "2-digit",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: true,
+                    })}
+                  </span>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+    )}
+    {notificationToast && (
+  <div
+    className="notification-toast"
+    onClick={() => {
+      setShowNotifications(true);
+      handleNotificationClick(notificationToast);
+      setNotificationToast(null);
+    }}
+  >
+    <div className="notification-toast-icon">
+      {notificationToast.type === "message"
+        ? "✉"
+        : "•"}
+    </div>
+
+    <div className="notification-toast-content">
+      <strong>
+        {notificationToast.title}
+      </strong>
+
+      <span>
+        {notificationToast.message}
+      </span>
+    </div>
+
+    <button
+      type="button"
+      className="notification-toast-close"
+      onClick={(e) => {
+        e.stopPropagation();
+        setNotificationToast(null);
+      }}
+      aria-label="Close notification"
+    >
+      ×
+    </button>
+  </div>
+)}
+  </div>
+);
+
+if (user && user.role === "admin") {
   return (
     <main className="dashboard">
       <header className="dashboard-header">
@@ -834,12 +1162,16 @@ const handleEditTask = (task) => {
           <p>Admin Dashboard</p>
         </div>
 
-        <button
-          className="logout-button"
-          onClick={handleLogout}
-        >
-          Logout
-        </button>
+        <div className="dashboard-header-actions">
+  {notificationUI}
+
+  <button
+    className="logout-button"
+    onClick={handleLogout}
+  >
+    Logout
+  </button>
+</div>
       </header>
 
       {selectedAdminUser && adminUserDetails ? (
@@ -1687,12 +2019,16 @@ const handleEditTask = (task) => {
             <p>Welcome back, {user.name}</p>
           </div>
 
-          <button
-            className="logout-button"
-            onClick={handleLogout}
-          >
-            Logout
-          </button>
+          <div className="dashboard-header-actions">
+  {notificationUI}
+
+  <button
+    className="logout-button"
+    onClick={handleLogout}
+  >
+    Logout
+  </button>
+</div>
         </header>
 
         <section className="dashboard-content">
