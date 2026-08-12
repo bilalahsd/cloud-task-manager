@@ -59,6 +59,7 @@ function App() {
   const [taskStatus, setTaskStatus] = useState("pending");
   const [taskDueDate, setTaskDueDate] = useState("");
   const [taskLoading, setTaskLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   
   const totalTasks = tasks.length;
   const pendingTasks = tasks.filter(
@@ -107,11 +108,18 @@ const loadTasks = async (token) => {
   setTasksLoading(true);
 
   try {
+    if (!token) {
+      throw new Error("No access token available");
+    }
+
     const data = await getTasks(token);
     setTasks(Array.isArray(data) ? data : []);
   } catch (error) {
-  console.error(error);
-}
+    console.error("Failed to load tasks:", error);
+    setTasks([]);
+  } finally {
+    setTasksLoading(false);
+  }
 };
 
 const loadAdminDashboard = async (token) => {
@@ -411,6 +419,8 @@ const handleDeleteTask = async (taskId) => {
     return;
   }
 
+  setDeleteLoading(true);
+
   try {
     await deleteTask(token, taskId);
 
@@ -424,6 +434,8 @@ const handleDeleteTask = async (taskId) => {
     );
 
     alert(error.message);
+  } finally {
+    setDeleteLoading(false);
   }
 };
 
@@ -1103,14 +1115,15 @@ const handleEditTask = (task) => {
                 </button>
 
                 <button
-                  type="button"
-                  className="confirm-delete-button"
-                  onClick={() =>
-                    handleDeleteTask(taskToDelete.id)
-                  }
-                >
-                  Delete task
-                </button>
+  type="button"
+  className="confirm-delete-button"
+  onClick={() =>
+    handleDeleteTask(taskToDelete.id)
+  }
+  disabled={deleteLoading}
+>
+  {deleteLoading ? "Deleting..." : "Delete task"}
+</button>
               </div>
             </div>
           </div>
